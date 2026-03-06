@@ -117,20 +117,16 @@ ENV NODE_ENV=production
 
 USER node
 
-# 植入开机自启脚本，这次一定要把文件名写对：openclaw.json！
-RUN echo '#!/bin/sh' > /app/start.sh && \
-    echo 'echo "====== 正在写入 openclaw.json ======"' >> /app/start.sh && \
-    echo 'mkdir -p /home/node/.openclaw' >> /app/start.sh && \
-    echo 'cat << "EOF" > /home/node/.openclaw/openclaw.json' >> /app/start.sh && \
-    echo '{"gateway":{"mode":"local","auth":{"token":"2008rije"},"controlUi":{"dangerouslyAllowHostHeaderOriginFallback":true}}}' >> /app/start.sh && \
-    echo 'EOF' >> /app/start.sh && \
-    echo 'echo "====== 配置文件生成完毕，准备启动 ======"' >> /app/start.sh && \
-    echo 'exec node openclaw.mjs gateway --bind lan' >> /app/start.sh && \
-    chmod +x /app/start.sh
+# 核心魔法：使用官方环境变量，强行指定配置读取目录，彻底粉碎 Render 的篡改！
+ENV OPENCLAW_STATE_DIR=/app/openclaw_data
+
+# 在构建镜像时，直接把完美配置写入这个绝对安全的专属目录
+RUN mkdir -p /app/openclaw_data && \
+    echo '{"gateway":{"mode":"local","auth":{"token":"2008rije"},"controlUi":{"dangerouslyAllowHostHeaderOriginFallback":true}}}' > /app/openclaw_data/openclaw.json
 
 # 官方自带的健康检查探测器
 HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-# 指定每次开机运行我们的自启脚本
-CMD ["/app/start.sh"]
+# 终极干净启动命令，没有任何废话
+CMD ["node", "openclaw.mjs", "gateway", "--bind", "lan"]
