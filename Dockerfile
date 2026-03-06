@@ -117,14 +117,13 @@ ENV NODE_ENV=production
 
 USER node
 
-# 植入一个开机自启脚本，在开机的瞬间将配置强制写入所有可能的目录
+# 植入开机自启脚本，这次一定要把文件名写对：openclaw.json！
 RUN echo '#!/bin/sh' > /app/start.sh && \
-    echo 'echo "====== 正在强制生成配置文件 ======"' >> /app/start.sh && \
+    echo 'echo "====== 正在写入 openclaw.json ======"' >> /app/start.sh && \
     echo 'mkdir -p /home/node/.openclaw' >> /app/start.sh && \
-    echo 'cat << "EOF" > /home/node/.openclaw/config.json' >> /app/start.sh && \
+    echo 'cat << "EOF" > /home/node/.openclaw/openclaw.json' >> /app/start.sh && \
     echo '{"gateway":{"mode":"local","auth":{"token":"2008rije"},"controlUi":{"dangerouslyAllowHostHeaderOriginFallback":true}}}' >> /app/start.sh && \
     echo 'EOF' >> /app/start.sh && \
-    echo 'cp /home/node/.openclaw/config.json /app/config.json' >> /app/start.sh && \
     echo 'echo "====== 配置文件生成完毕，准备启动 ======"' >> /app/start.sh && \
     echo 'exec node openclaw.mjs gateway --bind lan' >> /app/start.sh && \
     chmod +x /app/start.sh
