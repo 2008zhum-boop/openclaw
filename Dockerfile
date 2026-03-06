@@ -116,12 +116,9 @@ ENV NODE_ENV=production
 # This reduces the attack surface by preventing container escape via root privileges
 USER node
 
-# 在构建镜像时直接强行写入配置文件（绝对不报错）
-RUN mkdir -p /home/node/.openclaw && echo '{"gateway":{"auth":{"token":"2008rije"},"controlUi":{"dangerouslyAllowHostHeaderOriginFallback":true}}}' > /home/node/.openclaw/config.json
-
 # 健康检查
 HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-# 极简启动命令
-CMD ["node", "openclaw.mjs", "gateway", "--allow-unconfigured", "--bind", "lan"]
+# 终极启动指令（去掉了叛徒参数 --allow-unconfigured，并在运行时强制双保险写入配置文件）
+CMD sh -c "mkdir -p /home/node/.openclaw && echo '{\"gateway\":{\"auth\":{\"token\":\"2008rije\"},\"controlUi\":{\"dangerouslyAllowHostHeaderOriginFallback\":true}}}' | tee /home/node/.openclaw/config.json /app/config.json > /dev/null && node openclaw.mjs gateway --bind lan"
