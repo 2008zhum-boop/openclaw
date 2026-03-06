@@ -121,9 +121,9 @@ USER node
 ENV OPENCLAW_STATE_DIR=/app/openclaw_data
 
 # 在构建镜像时，直接把完美配置写入这个绝对安全的专属目录
+# 核心魔法：加入 "trustedProxies":["10.0.0.0/8"]，让它信任 Render 的代理节点，彻底终结误封杀！
 RUN mkdir -p /app/openclaw_data && \
-    echo '{"gateway":{"mode":"local","auth":{"token":"2008rije"},"controlUi":{"dangerouslyAllowHostHeaderOriginFallback":true}}}' > /app/openclaw_data/openclaw.json
-
+    echo '{"gateway":{"mode":"local","trustedProxies":["10.0.0.0/8"],"auth":{"token":"2008rije"},"controlUi":{"dangerouslyAllowHostHeaderOriginFallback":true}}}' > /app/openclaw_data/openclaw.json
 # 官方自带的健康检查探测器
 HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
