@@ -114,15 +114,24 @@ ENV NODE_ENV=production
 # Security hardening: Run as non-root user
 # The node:22-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges
+
 USER node
 
-# 核心魔法：直接把包含 mode、密码和防劫持特权的完整配置写入系统
-RUN mkdir -p /home/node/.openclaw && \
-    echo '{"gateway":{"mode":"local","auth":{"token":"2008rije"},"controlUi":{"dangerouslyAllowHostHeaderOriginFallback":true}}}' > /home/node/.openclaw/config.json
+# 植入一个开机自启脚本，在开机的瞬间将配置强制写入所有可能的目录
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'echo "====== 正在强制生成配置文件 ======"' >> /app/start.sh && \
+    echo 'mkdir -p /home/node/.openclaw' >> /app/start.sh && \
+    echo 'cat << "EOF" > /home/node/.openclaw/config.json' >> /app/start.sh && \
+    echo '{"gateway":{"mode":"local","auth":{"token":"2008rije"},"controlUi":{"dangerouslyAllowHostHeaderOriginFallback":true}}}' >> /app/start.sh && \
+    echo 'EOF' >> /app/start.sh && \
+    echo 'cp /home/node/.openclaw/config.json /app/config.json' >> /app/start.sh && \
+    echo 'echo "====== 配置文件生成完毕，准备启动 ======"' >> /app/start.sh && \
+    echo 'exec node openclaw.mjs gateway --bind lan' >> /app/start.sh && \
+    chmod +x /app/start.sh
 
 # 官方自带的健康检查探测器
 HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-# 完美干净的启动指令：去掉 --allow-unconfigured，只保留公网绑定
-CMD ["node", "openclaw.mjs", "gateway", "--bind", "lan"]
+# 指定每次开机运行我们的自启脚本
+CMD ["/app/start.sh"]
