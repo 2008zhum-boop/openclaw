@@ -117,16 +117,27 @@ ENV NODE_ENV=production
 
 USER node
 
-# 核心魔法：使用官方环境变量，强行指定配置读取目录，彻底粉碎 Render 的篡改！
 ENV OPENCLAW_STATE_DIR=/app/openclaw_data
 
-# 在构建镜像时，直接把完美配置写入这个绝对安全的专属目录
-# 核心魔法：加入 "trustedProxies":["10.0.0.0/8"]，让它信任 Render 的代理节点，彻底终结误封杀！
+# 写入基础配置（同时加入了 0.0.0.0/0 信任所有代理，双管齐下）
 RUN mkdir -p /app/openclaw_data && \
-    echo '{"gateway":{"mode":"local","trustedProxies":["10.0.0.0/8"],"auth":{"token":"2008rije"},"controlUi":{"dangerouslyAllowHostHeaderOriginFallback":true}}}' > /app/openclaw_data/openclaw.json
-# 官方自带的健康检查探测器
+    echo '{"gateway":{"mode":"local","trustedProxies":["0.0.0.0/0"],"auth":{"token":"2008rije"},"controlUi":{"dangerouslyAllowHostHeaderOriginFallback":true}}}' > /app/openclaw_data/openclaw.json
+
+# 官方健康检查
 HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-# 终极干净启动命令，没有任何废话
-CMD ["node", "openclaw.mjs", "gateway", "--bind", "lan"]
+# 终极魔法脚本：后台启动网关 -> 等待10秒 -> 自动打印免配对链接 -> 保持运行
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'echo "🚀 正在启动网关服务..."' >> /app/start.sh && \
+    echo 'node openclaw.mjs gateway --bind lan & ' >> /app/start.sh && \
+    echo 'echo "⏳ 等待服务初始化 (10秒)..."' >> /app/start.sh && \
+    echo 'sleep 10' >> /app/start.sh && \
+    echo 'echo "============================================================"' >> /app/start.sh && \
+    echo 'echo "🔑 您的专属免配对魔法链接已生成，请完整复制下方带有 token 的网址："' >> /app/start.sh && \
+    echo 'node openclaw.mjs dashboard --no-open' >> /app/start.sh && \
+    echo 'echo "============================================================"' >> /app/start.sh && \
+    echo 'wait' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
+CMD ["/app/start.sh"]
