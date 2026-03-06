@@ -116,9 +116,33 @@ ENV NODE_ENV=production
 # This reduces the attack surface by preventing container escape via root privileges
 USER node
 
+# 植入自动生成并篡改配置的终极脚本
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'echo "Step 1: Generating full default config..."' >> /app/start.sh && \
+    echo 'timeout 5 node openclaw.mjs gateway --allow-unconfigured || true' >> /app/start.sh && \
+    echo 'echo "Step 2: Patching config with our secret keys..."' >> /app/start.sh && \
+    echo 'node -e "' >> /app/start.sh && \
+    echo 'const fs = require(\"fs\");' >> /app/start.sh && \
+    echo 'const paths = [\"/home/node/.openclaw/config.json\", \"/app/config.json\"];' >> /app/start.sh && \
+    echo 'paths.forEach(p => {' >> /app/start.sh && \
+    echo '  if(fs.existsSync(p)){' >> /app/start.sh && \
+    echo '    let c = JSON.parse(fs.readFileSync(p,\"utf8\"));' >> /app/start.sh && \
+    echo '    c.gateway=c.gateway||{}; c.gateway.auth=c.gateway.auth||{}; c.gateway.auth.token=\"2008rije\";' >> /app/start.sh && \
+    echo '    c.gateway.controlUi=c.gateway.controlUi||{}; c.gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback=true;' >> /app/start.sh && \
+    echo '    fs.writeFileSync(p, JSON.stringify(c,null,2));' >> /app/start.sh && \
+    echo '    console.log(\"Successfully patched: \" + p);' >> /app/start.sh && \
+    echo '  }' >> /app/start.sh && \
+    echo '});' >> /app/start.sh && \
+    echo '"' >> /app/start.sh && \
+    echo 'echo "Step 3: Starting gateway on public network..."' >> /app/start.sh && \
+    echo 'exec node openclaw.mjs gateway --bind lan' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
 # 健康检查
 HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
+# 启动脚本
+CMD ["/app/start.sh"]
 # 终极启动指令（去掉了叛徒参数 --allow-unconfigured，并在运行时强制双保险写入配置文件）
 CMD sh -c "mkdir -p /home/node/.openclaw && echo '{\"gateway\":{\"auth\":{\"token\":\"2008rije\"},\"controlUi\":{\"dangerouslyAllowHostHeaderOriginFallback\":true}}}' | tee /home/node/.openclaw/config.json /app/config.json > /dev/null && node openclaw.mjs gateway --bind lan"
